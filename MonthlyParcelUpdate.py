@@ -11,6 +11,7 @@
 ## 2 Manually add each municipality's parcel fc to GDB created in Start()
 ## 3 AddTempFields()
 ## 4 FieldCleanup()
+##      - Ensure Field names in OriginalFields match actual field names
 ## 5 MergeParcels()
 
 import arcpy, datetime, os
@@ -110,8 +111,8 @@ def AddTempFields():
 ############################################################################################
   
 def FieldCleanup():
-    #Williamsburg()
-    YorkCounty()
+##    Williamsburg()
+##    YorkCounty()
     Poquoson()
     NewportNews()
     JamesCityCounty()
@@ -169,7 +170,7 @@ def YorkCounty():
     arcpy.CalculateField_management(YC, "_Square_Feet_",    'round(!shape.area@SQUAREFEET!, 2)',    "PYTHON_9.3")
     arcpy.CalculateField_management(YC, "_Acres_US_",       'round(!shape.area@ACRES!, 2)',         "PYTHON_9.3")
     arcpy.CalculateField_management(YC, "_Sub_Name_",       '!SUBDIVISION!',                        "PYTHON_9.3")
-    arcpy.CalculateField_management(YC, "_Legal_Desc_",     '!LEGLDESC!',                           "PYTHON_9.3")
+    arcpy.CalculateField_management(YC, "_Legal_Desc_",     '[LEGLDESC]',                           "VB")
     arcpy.CalculateField_management(YC, "_Info_Source_",    '"York County GIS Manager"',            "PYTHON_9.3")
     arcpy.CalculateField_management(YC, "_EditDate_",       'Date()',                               "PYTHON_9.3", codeblock_Date)
     arcpy.CalculateField_management(YC, "_EditBy_",         '"bkingery"',                           "PYTHON_9.3")
@@ -180,7 +181,36 @@ def YorkCounty():
             arcpy.DeleteField_management(YC, field.name)
             
 def Poquoson():
-    pass
+    print 'Poquoson'
+
+    OriginalFields = ['MAP_PIN','OWNRNAME','STRTNUMB','STRTNAME','PROPZIPC','PROPDESC','LEGLDESC']
+
+    print '\tDeleting fields'
+    for field in arcpy.ListFields(POQ):
+        if not field.required and field.name not in TempFields and field.name not in OriginalFields:
+            arcpy.DeleteField_management(POQ, field.name)
+
+    print '\tField calculating'
+    arcpy.CalculateField_management(POQ, "_Parcel_ID_",      '!MAP_PIN!',                            "PYTHON_9.3")
+    arcpy.CalculateField_management(POQ, "_Name_Owner_",     '!OWNRNAME!',                           "PYTHON_9.3")
+    arcpy.CalculateField_management(POQ, "_HouseNumber_",    '!STRTNUMB',                            "PYTHON_9.3")
+    arcpy.CalculateField_management(POQ, "_Street_",         '!STRTNAME!',                           "PYTHON_9.3")
+    arcpy.CalculateField_management(POQ, "_City_Loc_",       '"Poquoson"',                           "PYTHON_9.3")
+    arcpy.CalculateField_management(POQ, "_State_",          '"VA"',                                 "PYTHON_9.3")
+    arcpy.CalculateField_management(POQ, "_Zip_Code_",       '!PROPZIPC!',                           "PYTHON_9.3")
+    arcpy.CalculateField_management(POQ, "_Square_Feet_",    'round(!shape.area@SQUAREFEET!, 2)',    "PYTHON_9.3")
+    arcpy.CalculateField_management(POQ, "_Acres_US_",       'round(!shape.area@ACRES!, 2)',         "PYTHON_9.3")
+    arcpy.CalculateField_management(POQ, "_Sub_Name_",       '!PROPDESC!',                           "PYTHON_9.3")
+    arcpy.CalculateField_management(POQ, "_Legal_Desc_",     '!LEGLDESC!',                           "PYTHON_9.3")
+    arcpy.CalculateField_management(POQ, "_Info_Source_",    '"Poquoson Assessor Office"',           "PYTHON_9.3")
+    arcpy.CalculateField_management(POQ, "_EditDate_",       'Date()',                               "PYTHON_9.3", codeblock_Date)
+    arcpy.CalculateField_management(POQ, "_EditBy_",         '"bkingery"',                           "PYTHON_9.3")
+
+    print '\tFinalizing fields'
+    for field in arcpy.ListFields(POQ):
+        if not field.required and field.name not in TempFields:
+            arcpy.DeleteField_management(POQ, field.name)
+            
 def NewportNews():
     pass
 def JamesCityCounty():
