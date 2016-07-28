@@ -1,37 +1,32 @@
-##Name:     MonthlyParcelUpdate.py
-##Author:   Brian Kingery
-##Created:  7/27/2016
-##
-##Purpose:  Automate the monthly Parcel update process
-##
-##Folder:   R:\Divisions\InfoTech\Shared\GIS\Parcels
-##
-## 1 Start()
-## 2 Manually add each municipality's parcel fc to GDB created in Start()
-##      - Write a script that will join table to NKC Parcels
-## 3 AddTempFields()
-## 4 FieldCalculations()
-## 5 MergeParcels()
-## 6 Need to find a zipcode file and do a spatial join
-## 7 Need to find a city file to do a spatial join
-## 8 Alter field names
-## 9 Copy fc to master name
+"""
+Name:     MonthlyParcelUpdate.py
+Author:   Brian Kingery
+Created:  7/28/2016
+Purpose:  Automate the monthly Parcel update process
+Folder:   R:\Divisions\InfoTech\Shared\GIS\Parcels
 
-
-##Data Sources
-##
-##WB  = Website = https://www.williamsburgva.gov/Index.aspx?page=793
-##      Parcels.zip = http://www.williamsburgva.gov/Modules/ShowDocument.aspx?documentid=3604
-##YC  = ?
-##POQ = ?
-##NN  = http://gis.nngov.com/resources/NNParcels.zip
-##JCC = ?
-##HAM = ?   Expired Drop Box = https://hampton.box.com/s/glghtvifu33lqhn0grd0glluvi3a6zp0
-##NKC = Website = https://www.dropbox.com/sh/ynce0em649y5aas/AACjCT4zCthTqNWAIL7qL7Aka?dl=0
-##      CountyGIS.gdb = https://www.dropbox.com/sh/ynce0em649y5aas/AAAN5xE8tjXoeOco3jOQn-Fga/CountyGIS.gdb?dl=0%3Flst
+############################################################################################
 
 
 
+############################################################################################
+
+Order of Operations
+
+1 Run Start()
+2 Manually add each municipality's parcel fc to GDB created in Start()
+     - Download and store CountyGIS.gdb for NKC to the main TodaysDate Folder
+     - Run NKCParcels()
+     - Open Arcmap --> Add .lyr and export to GDB as NKC
+3 Run AddTempFields()
+4 Run FieldCalc()
+5 Run MergeParcels()
+6 Need to find a zipcode file and do a spatial join
+7 Need to find a city file to do a spatial join
+8 Alter field names
+9 Copy fc to master name
+
+"""
 
 import arcpy, datetime, os
 from arcpy import env
@@ -101,6 +96,22 @@ def CreateMasterParcelsFC():
 
 ############################################################################################
 
+def NKCParcels():
+    # You have to join it to the VISION_CURRENT table using the REM_PID and AV_PID fields.
+    # Than add .lyr to a map document and export data to GDB
+    try:
+        database = env.workspace + os.sep + TodaysDate + os.sep + 'CountyGIS.gdb'
+        NKCParcels = database + os.sep + 'Cadastral' + os.sep + 'Parcels'
+        ParcelLayer = arcpy.MakeFeatureLayer_management(NKCParcels, 'NKCParcels')
+        LayerFile = env.workspace + os.sep + TodaysDate + os.sep + 'NKCParcels.lyr'
+        arcpy.SaveToLayerFile_management(ParcelLayer, LayerFile)
+        Table = database + os.sep + 'VISION_CURRENT'
+        arcpy.AddJoin_management(LayerFile, "AV_PID", Table, "REM_PID", "KEEP_ALL")
+    except:
+        print 'Make sure CountyGIS.gdb is saved to main folder.'
+
+############################################################################################
+
 def AddTempFields():
     env.workspace = env.workspace + os.sep + TodaysDate + os.sep + 'Parcels_' + TodaysDate + '.gdb'
 
@@ -126,10 +137,10 @@ def AddTempFields():
         print 'Adding fields to ' + fc
         arcpy.AddField_management(fc, fieldName1,  fieldType1, "", "", 50)
         arcpy.AddField_management(fc, fieldName2,  fieldType1, "", "", 150)
-        arcpy.AddField_management(fc, fieldName3,  fieldType1, "", "", 10)
+        arcpy.AddField_management(fc, fieldName3,  fieldType1, "", "", 50)
         arcpy.AddField_management(fc, fieldName4,  fieldType1, "", "", 50)
         arcpy.AddField_management(fc, fieldName5,  fieldType1, "", "", 50)
-        arcpy.AddField_management(fc, fieldName6,  fieldType1, "", "", 5)
+        arcpy.AddField_management(fc, fieldName6,  fieldType1, "", "", 20)
         arcpy.AddField_management(fc, fieldName7,  fieldType1, "", "", 10)
         arcpy.AddField_management(fc, fieldName8,  fieldType2, "", "", 20)
         arcpy.AddField_management(fc, fieldName9,  fieldType2, "", "", 20)
@@ -141,7 +152,7 @@ def AddTempFields():
 
 ############################################################################################
   
-def FieldCalculations():
+def FieldCalc():
     try:
         Williamsburg()
     except:
@@ -173,7 +184,7 @@ def FieldCalculations():
 
 def Williamsburg():
     print 'Williamsburg'
-    print '\tField calculating'
+    print '\tCalculating fields'
     arcpy.CalculateField_management(WB, "_Parcel_ID_", '!PID!', "PYTHON_9.3")
     arcpy.CalculateField_management(WB, "_State_", '"VA"', "PYTHON_9.3")
     arcpy.CalculateField_management(WB, "_Square_Feet_", 'round(!shape.area@SQUAREFEET!, 2)', "PYTHON_9.3")
@@ -190,7 +201,7 @@ def Williamsburg():
 
 def YorkCounty():
     print 'York County'
-    print '\tField calculating'
+    print '\tCalculating fields'
     arcpy.CalculateField_management(YC, "_Parcel_ID_", '!GPIN!', "PYTHON_9.3")
     arcpy.CalculateField_management(YC, "_Name_Owner_", '!OWNERSNAME!', "PYTHON_9.3")
     arcpy.CalculateField_management(YC, "_HouseNumber_", '!LOCADDR!.split(" ")[0]', "PYTHON_9.3")
@@ -211,7 +222,7 @@ def YorkCounty():
             
 def Poquoson():
     print 'Poquoson'
-    print '\tField calculating'
+    print '\tCalculating fields'
     arcpy.CalculateField_management(POQ, "_Parcel_ID_", '!MAP_PIN!', "PYTHON_9.3")
     arcpy.CalculateField_management(POQ, "_Name_Owner_", '!OWNRNAME!', "PYTHON_9.3")
     arcpy.CalculateField_management(POQ, "_HouseNumber_", '!STRTNUMB!', "PYTHON_9.3") # Long - so recalc below to add to text
@@ -233,7 +244,7 @@ def Poquoson():
             
 def NewportNews():
     print 'Newport News'
-    print '\tField calculating'
+    print '\tCalculating fields'
     arcpy.CalculateField_management(NN, "_Parcel_ID_", '!REISID!', "PYTHON_9.3")
     arcpy.CalculateField_management(NN, "_HouseNumber_", '!HouseNo!', "PYTHON_9.3") # Double - so recalc below to add to text
     arcpy.CalculateField_management(NN, "_HouseNumber_", '!_HouseNumber_! + !Apt!', "PYTHON_9.3") # To add Apt number
@@ -254,7 +265,7 @@ def NewportNews():
 
 def JamesCityCounty():
     print 'James City County'
-    print '\tField calculating'
+    print '\tCalculating fields'
     arcpy.CalculateField_management(JCC, "_Parcel_ID_", '!PIN!', "PYTHON_9.3")
     arcpy.CalculateField_management(JCC, "_HouseNumber_", '!LOCADDR!.split(" ")[0]', "PYTHON_9.3")
     arcpy.CalculateField_management(JCC, "_Street_", 'Street(!LOCADDR!)', "PYTHON_9.3", codeblock_Street)
@@ -274,7 +285,7 @@ def JamesCityCounty():
 
 def Hampton():
     print 'Hampton'
-    print '\tField calculating'
+    print '\tCalculating fields'
     arcpy.CalculateField_management(HAM, "_Parcel_ID_", '!LRSNTXT!', "PYTHON_9.3")
     arcpy.CalculateField_management(HAM, "_HouseNumber_", '!SITUS!.split(" ")[0]', "PYTHON_9.3")
     arcpy.CalculateField_management(HAM, "_Street_", 'Street(!SITUS!)', "PYTHON_9.3", codeblock_Street)
@@ -293,16 +304,16 @@ def Hampton():
 
 def NewKentCounty():
     print 'New Kent County'
-    print '\tField calculating'
+    print '\tCalculating fields'
     arcpy.CalculateField_management(NKC, "_Parcel_ID_", '!GPIN!', "PYTHON_9.3")
-    arcpy.CalculateField_management(NKC, "_Name_Owner_", '!REM_OWN_NA!', "PYTHON_9.3")
-    arcpy.CalculateField_management(NKC, "_HouseNumber_", '!REM_PRCL_L!.split(" ")[0]', "PYTHON_9.3")
-    arcpy.CalculateField_management(NKC, "_Street_", 'Street(!REM_PRCL_L!)', "PYTHON_9.3", codeblock_Street)
+    arcpy.CalculateField_management(NKC, "_Name_Owner_", '!REM_OWN_NAME!', "PYTHON_9.3")
+    arcpy.CalculateField_management(NKC, "_HouseNumber_", '!REM_PRCL_LOCN!.split(" ")[0]', "PYTHON_9.3")
+    arcpy.CalculateField_management(NKC, "_Street_", 'Street(!REM_PRCL_LOCN!)', "PYTHON_9.3", codeblock_Street)
     arcpy.CalculateField_management(NKC, "_State_", '"VA"', "PYTHON_9.3")
     arcpy.CalculateField_management(NKC, "_Square_Feet_", 'round(!shape.area@SQUAREFEET!, 2)', "PYTHON_9.3")
     arcpy.CalculateField_management(NKC, "_Acres_US_", 'round(!shape.area@ACRES!, 2)', "PYTHON_9.3")
-    arcpy.CalculateField_management(NKC, "_Sub_Name_", '!SUBDIVISIO!', "PYTHON_9.3")
-    arcpy.CalculateField_management(NKC, "_Legal_Desc_", '!VNS_STYLE_!', "PYTHON_9.3")
+    arcpy.CalculateField_management(NKC, "_Sub_Name_", '!SUBDIVISION!', "PYTHON_9.3")
+    arcpy.CalculateField_management(NKC, "_Legal_Desc_", '!VNS_STYLE_DESC!', "PYTHON_9.3")
     arcpy.CalculateField_management(NKC, "_Info_Source_", '"New Kent County GIS"', "PYTHON_9.3")
     arcpy.CalculateField_management(NKC, "_EditDate_", 'Date()', "PYTHON_9.3", codeblock_Date)
     arcpy.CalculateField_management(NKC, "_EditBy_", '"bkingery"', "PYTHON_9.3")
@@ -327,3 +338,14 @@ def Zipcodes():
 
 def City():
     pass
+
+
+
+
+
+
+
+
+
+
+
