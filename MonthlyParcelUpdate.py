@@ -42,10 +42,10 @@ Order of Operations
 2 Manually add each municipality's parcel as a fc to GDB
     - Download and store CountyGIS.gdb for NKC to the main TodaysDate Folder -->
       Run NKCParcels() --> Open Arcmap --> Add .lyr and export to GDB as NKC
-3 AddTempFields()
-4 FieldCalc()
-    - If any error messages occur, investigate and run specific function for select municipality that errored
-5 Finish()
+3 FieldCalc()
+    - AddTempFields()
+        - If any error messages occur, investigate and run specific function for select municipality that errored
+4 Finish()
     - MergeParcels()
     - ZipCodeJoin()
     - CityJoin()
@@ -140,6 +140,39 @@ def NKCParcels():
 
 ############################################################################################
 
+def FieldCalc():
+    
+    AddTempFields()
+    
+    try:
+        Williamsburg()
+    except:
+        print 'Error Williamsburg()'
+    try:
+        YorkCounty()
+    except:
+        print 'Error YorkCounty()'
+    try:
+        Poquoson()
+    except:
+        print 'Error Poquoson()'
+    try:
+        NewportNews()
+    except:
+        print 'Error NewportNews()'
+    try:
+        JamesCityCounty()
+    except:
+        print 'Error JamesCityCounty()'
+    try:
+        Hampton()
+    except:
+        print 'Error Hampton()'
+    try:
+        NewKentCounty()
+    except:
+        print 'Error NewKentCounty()'
+
 def AddTempFields():
     env.workspace = env.workspace + os.sep + 'UpdateFolder' + os.sep + TodaysDate + os.sep + 'Parcels_' + TodaysDate + '.gdb'
 
@@ -177,38 +210,6 @@ def AddTempFields():
         arcpy.AddField_management(fc, fieldName12, fieldType1, "", "", 50)
         arcpy.AddField_management(fc, fieldName13, fieldType1, "", "", 10)
         arcpy.AddField_management(fc, fieldName14, fieldType1, "", "", 50)
-
-############################################################################################
-
-def FieldCalc():
-    try:
-        Williamsburg()
-    except:
-        print 'Error Williamsburg()'
-    try:
-        YorkCounty()
-    except:
-        print 'Error YorkCounty()'
-    try:
-        Poquoson()
-    except:
-        print 'Error Poquoson()'
-    try:
-        NewportNews()
-    except:
-        print 'Error NewportNews()'
-    try:
-        JamesCityCounty()
-    except:
-        print 'Error JamesCityCounty()'
-    try:
-        Hampton()
-    except:
-        print 'Error Hampton()'
-    try:
-        NewKentCounty()
-    except:
-        print 'Error NewKentCounty()'
 
 def Williamsburg():
     print 'Williamsburg'
@@ -359,15 +360,11 @@ def Finish():
     AlterFields()
     SendEmail()
     
-############################################################################################
-
 def MergeParcels():
     print 'Merging all parcels to Master'
     # http://resources.arcgis.com/en/help/main/10.2/index.html#/Merge/001700000055000000/
     arcpy.Merge_management([WB, YC, POQ, NN, JCC, HAM, NKC], MasterParcels)
                               
-############################################################################################
-
 def ZipCodeJoin():
     print 'Joining to ZipCode FC'
     arcpy.SpatialJoin_analysis(MasterParcels, ZipCodeFC, MasterZipCodeJoinFC, "JOIN_ONE_TO_ONE", "KEEP_ALL")
@@ -379,8 +376,6 @@ def ZipCodeJoin():
             arcpy.DeleteField_management(MasterZipCodeJoinFC, field.name)
             print '\t\tDeleted ' + field.name
             
-############################################################################################
-
 def CityJoin():
     print 'Joining to City FC'
     arcpy.SpatialJoin_analysis(MasterZipCodeJoinFC, CityFC, MasterCityJoinFC, "JOIN_ONE_TO_ONE", "KEEP_ALL")
@@ -395,8 +390,6 @@ def CityJoin():
     out_path = env.workspace + os.sep + 'UpdateFolder' + os.sep + TodaysDate + os.sep + 'Parcels_' + TodaysDate + '.gdb'
     out_name = FinalFCname
     arcpy.FeatureClassToFeatureClass_conversion(MasterCityJoinFC, out_path, out_name)
-
-############################################################################################
 
 def AlterFields():
     print 'Finalizing fields'
@@ -457,8 +450,6 @@ def AlterFields():
             arcpy.DeleteField_management(CleanedParcels, field.name)
             print '\t\tDeleted ' + field.name
 
-############################################################################################
-
 def SendEmail():
     try:
         import smtplib
@@ -482,5 +473,5 @@ def SendEmail():
         server.quit()
     except:
         print 'Email not sent'
-
+        
 ############################################################################################
