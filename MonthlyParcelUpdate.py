@@ -15,7 +15,7 @@ Williamsburg
 York County
      ---Confidential---
 Poquoson
-    WorldView Solutions maintains Poquoson parcel data and set me up a profile to request data
+    WorldView Solutions maintains Poquoson parcel data and set up a profile for me to request data
     Updates quarterly
     Website = https://worldviewsolutions.atlassian.net/servicedesk/customer/portals
 Newport News
