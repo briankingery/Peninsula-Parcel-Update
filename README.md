@@ -1,2 +1,2 @@
 # Peninsula-Parcel-Update
-This repository is a collection of python scripts used to update the Waterworks Department Parcel feature class. Each month the main layer needs to be updated. To do that, each municipality's parcel records need to be merged together to match Waterworks' current schema.
+This repository is used to update the Waterworks Department Parcel feature class each month. To do that, each municipality's parcel records need to be merged together and then processed to match Waterworks' current schema.
