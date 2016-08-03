@@ -1,7 +1,7 @@
 """
 Name:     MonthlyParcelUpdate.py
 Author:   Brian Kingery
-Created:  7/29/2016
+Created:  8/3/2016
 Purpose:  Automate the monthly Parcel update process
 Folder:   R:\Divisions\InfoTech\Shared\GIS\Parcels
 
@@ -13,21 +13,20 @@ Williamsburg
     Website = https://www.williamsburgva.gov/Index.aspx?page=793
     Parcels.zip = http://www.williamsburgva.gov/Modules/ShowDocument.aspx?documentid=3604
 York County
-     ---Confidential---
+    -- Confidential --
 Poquoson
-    WorldView Solutions maintains Poquoson parcel data and set up a profile for me to request data
+    WorldView Solutions maintains Poquoson parcel data and set up a profile to request data
     Updates quarterly
     Website = https://worldviewsolutions.atlassian.net/servicedesk/customer/portals
 Newport News
-    ---Confidential---
+    -- Confidential --
 James City County
     Website = http://www.jamescitycountyva.gov/397/Mapping-Layers
     jcc_parcels.zip = ftp://property.jamescitycountyva.gov/GIS/layers/jcc_parcels.zip
 Hampton
-    ---Confidential---
+    -- Confidential --
 New Kent County
-    ---Confidential---
-    
+    -- Confidential --
 Zipcodes
     ftp://ftp2.census.gov/geo/tiger/TIGER2015/ZCTA5/
 County Data
@@ -39,13 +38,17 @@ Order of Operations
 
 1 Start()
     - A folder of TodaysDate will be created at R:\Divisions\InfoTech\Shared\GIS\Parcels containing a file geodatabase
-2 Manually add each municipality's parcel as a fc to GDB
-    - Download and store CountyGIS.gdb for NKC to the main TodaysDate Folder -->
-      Run NKCParcels() --> Open Arcmap --> Add .lyr and export to GDB as NKC
-3 FieldCalc()
+2 Manually import each zipfile to correct CityData folder
+    - York County parcels from rest service directly to main geodatabase
+    - Download CountyGIS.gdb.zip for NKC to the correct CityData folder
+        - Right click zip file --> Extract All... to NKC folder
+        - Run NKCParcels() --> Open Arcmap --> Add .lyr and export to GDB as NKC    
+3 ProcessData()
+4 FieldCalc()
     - AddTempFields()
         - If any error messages occur, investigate and run specific function for select municipality that errored
-4 Finish()
+    - SendEmail()
+5 Finish()
     - MergeParcels()
     - ZipCodeJoin()
     - CityJoin()
@@ -58,7 +61,7 @@ Feature Class named RealPropertyParcel properly formatted ready to be copied to 
 
 """
 
-import arcpy, datetime, os
+import arcpy, datetime, os, zipfile
 from arcpy import env
 
 env.workspace = r'R:\Divisions\InfoTech\Shared\GIS\Parcels'
@@ -100,19 +103,63 @@ codeblock_Street = """def Street(FIELD):
     y = " ".join(x)
     return y"""
 
+## Do not want to include HouseNo that start with 0. If this was not an issue, could do the following...
+##def FixStreet(HouseNo, Street):
+##    try:
+##        if isinstance(HouseNo[0],int):
+##            return Street
+##        else:
+##            return HouseNo + " " + Street
+##    except:
+##        return Street
+
+codeblock_FixStreet = """def FixStreet(HouseNo, Street):
+    integerList = ['1','2','3','4','5','6','7','8','9']
+    try:
+        if HouseNo[0] in integerList:
+            return Street
+        else:
+            return HouseNo + " " + Street
+    except:
+        return Street """
+
+codeblock_FixHouseNo = """def FixHouseNo(HouseNo):
+    integerList = ['1','2','3','4','5','6','7','8','9']
+    try:
+        if HouseNo[0] in integerList:
+            return HouseNo
+        else:
+            return "--"
+    except:
+        return "--" """
+
 ############################################################################################
 
 def Start():
     CreateFolder()
     CreateFileGeodatabase()
-    
+
 def CreateFolder():
     global folder
     folder = env.workspace + os.sep + 'UpdateFolder' + os.sep + TodaysDate
     if arcpy.Exists(folder):
-        arcpy.Delete_management(folder)    
+        arcpy.Delete_management(folder)
     os.makedirs(folder)
-    print 'Folder = ' + folder
+    CityData  = folder + os.sep + 'CityData'
+    WBfolder  = CityData + os.sep + 'Williamsburg'
+    POQfolder = CityData + os.sep + 'Poquoson'
+    NNfolder  = CityData + os.sep + 'NewportNews'
+    JCCfolder = CityData + os.sep + 'JamesCityCounty'
+    HAMfolder = CityData + os.sep + 'Hampton'
+    NKCfolder = CityData + os.sep + 'NewKentCounty'
+    os.makedirs(CityData)
+    os.makedirs(WBfolder)
+    os.makedirs(POQfolder)
+    os.makedirs(NNfolder)
+    os.makedirs(JCCfolder)
+    os.makedirs(HAMfolder)
+    os.makedirs(NKCfolder)
+    print 'Project Folder = ' + folder
         
 def CreateFileGeodatabase():
     global gdb
@@ -123,20 +170,80 @@ def CreateFileGeodatabase():
     print 'GDB = ' + gdb
 
 ############################################################################################
+    
+def ProcessData():
+    WBParcels()
+    ## York County parcels from rest service directly to main geodatabase
+    POQParcels()
+    NNParcels()
+    JCCParcels()
+    HAMParcels()
+    NKCParcels()
+
+def WBParcels():
+    try:
+        WBfolder = env.workspace + os.sep + 'UpdateFolder' + os.sep + TodaysDate + os.sep + 'CityData' + os.sep + 'Williamsburg'
+        WBZip = WBfolder + os.sep + 'Parcels.zip'
+        with zipfile.ZipFile(WBZip, "r") as z:
+            z.extractall(WBfolder)
+        SHP = WBfolder + os.sep + 'Parcels.shp'
+        arcpy.CopyFeatures_management(SHP, WB)
+        print 'WB parcels copied to main database'
+    except:
+        print 'Make sure Parcels.zip is saved to WB folder.'
+
+def POQParcels():
+    try:
+        POQfolder = env.workspace + os.sep + 'UpdateFolder' + os.sep + TodaysDate + os.sep + 'CityData' + os.sep + 'Poquoson'
+        POQZip = POQfolder + os.sep + 'Waterworks.zip'
+        with zipfile.ZipFile(POQZip, "r") as z:
+            z.extractall(POQfolder)
+        FC = POQfolder + '\Waterworks\Waterworks.gdb\Tax_Parcels'
+        arcpy.CopyFeatures_management(FC, POQ)
+        print 'POQ parcels copied to main database'
+    except:
+        print 'Make sure Waterworks.zip is saved to POQ folder.'
+
+def NNParcels():
+    try:
+        NNfolder = env.workspace + os.sep + 'UpdateFolder' + os.sep + TodaysDate + os.sep + 'CityData' + os.sep + 'NewportNews'
+        NNZip = NNfolder + os.sep + 'NNParcels.zip'
+        with zipfile.ZipFile(NNZip, "r") as z:
+            z.extractall(NNfolder)
+        SHP = NNfolder + os.sep + 'NNParcels.shp'
+        arcpy.CopyFeatures_management(SHP, NN)
+        print 'NN parcels copied to main database'
+    except:
+        print 'Make sure NNParcels.zip is saved to NN folder.'    
+
+def JCCParcels():
+    try:
+        JCCfolder = env.workspace + os.sep + 'UpdateFolder' + os.sep + TodaysDate + os.sep + 'CityData' + os.sep + 'JamesCityCounty'
+        JCCZip = JCCfolder + os.sep + 'jcc_parcels.zip'
+        with zipfile.ZipFile(JCCZip, "r") as z:
+            z.extractall(JCCfolder)
+        SHP = JCCfolder + os.sep + 'parcel_public.shp'
+        arcpy.CopyFeatures_management(SHP, JCC)
+        print 'JCC parcels copied to main database'
+    except:
+        print 'Make sure jcc_parcels.zip is saved to JCC folder.' 
+
+def HAMParcels():
+    pass
 
 def NKCParcels():
-    # You have to join it to the VISION_CURRENT table using the REM_PID and AV_PID fields.
-    # Than add .lyr to a map document and export data to GDB
     try:
-        database = env.workspace + os.sep + 'UpdateFolder' + os.sep + TodaysDate + os.sep + 'CountyGIS.gdb'
-        NKCParcels = database + os.sep + 'Cadastral' + os.sep + 'Parcels'
-        ParcelLayer = arcpy.MakeFeatureLayer_management(NKCParcels, 'NKCParcels')
-        LayerFile = env.workspace + os.sep + 'UpdateFolder' + os.sep + TodaysDate + os.sep + 'NKCParcels.lyr'
+        NKCfolder = env.workspace + os.sep + 'UpdateFolder' + os.sep + TodaysDate + os.sep + 'CityData' + os.sep + 'NewKentCounty'
+        CountyGISParcels = NKCfolder + os.sep + 'CountyGIS.gdb\Cadastral\Parcels'
+        ParcelLayer = arcpy.MakeFeatureLayer_management(CountyGISParcels, 'NKCParcels')
+        LayerFile = NKCfolder + os.sep + 'NKCParcels.lyr'
         arcpy.SaveToLayerFile_management(ParcelLayer, LayerFile)
-        Table = database + os.sep + 'VISION_CURRENT'
-        arcpy.AddJoin_management(LayerFile, "AV_PID", Table, "REM_PID", "KEEP_ALL")
+        Table = NKCfolder + os.sep + 'CountyGIS.gdb\VISION_CURRENT'
+        arcpy.AddJoin_management(LayerFile, "AV_PID", Table, "REM_PID", "KEEP_ALL")        
+        print 'NKCParcels.lyr created and joined with VISION_CURRENT'
+        print 'Open Arcmap --> Add NKCParcels.lyr --> Export data to GDB as NKC'       
     except:
-        print 'Make sure CountyGIS.gdb is saved to main folder.'
+        print 'Make sure CountyGIS.gdb is saved to NKC folder.'
 
 ############################################################################################
 
@@ -172,6 +279,8 @@ def FieldCalc():
         NewKentCounty()
     except:
         print 'Error NewKentCounty()'
+
+    SendEmail()
 
 def AddTempFields():
     env.workspace = env.workspace + os.sep + 'UpdateFolder' + os.sep + TodaysDate + os.sep + 'Parcels_' + TodaysDate + '.gdb'
@@ -215,18 +324,12 @@ def Williamsburg():
     print 'Williamsburg'
     print '\tField calculating'
     arcpy.CalculateField_management(WB, "_Parcel_ID_", '!PID!', "PYTHON_9.3")
-    arcpy.CalculateField_management(WB, "_State_", '"VA"', "PYTHON_9.3")
-    arcpy.CalculateField_management(WB, "_Square_Feet_", 'round(!shape.area@SQUAREFEET!, 2)', "PYTHON_9.3")
-    arcpy.CalculateField_management(WB, "_Acres_US_", 'round(!shape.area@ACRES!, 2)', "PYTHON_9.3")
     arcpy.CalculateField_management(WB, "_Legal_Desc_", '!LUCat!', "PYTHON_9.3")
     arcpy.CalculateField_management(WB, "_Info_Source_", '"Williamsburg GIS Website"', "PYTHON_9.3")
-    arcpy.CalculateField_management(WB, "_EditDate_", 'Date()', "PYTHON_9.3", codeblock_Date)
-    arcpy.CalculateField_management(WB, "_EditBy_", '"bkingery"', "PYTHON_9.3")
     print '\tDeleting unnecessary fields'
     for field in arcpy.ListFields(WB):
         if not field.required and field.name not in TempFields:
             arcpy.DeleteField_management(WB, field.name)
-            print '\t\tDeleted ' + field.name
 
 def YorkCounty():
     print 'York County'
@@ -234,20 +337,14 @@ def YorkCounty():
     arcpy.CalculateField_management(YC, "_Parcel_ID_", '!GPIN!', "PYTHON_9.3")
     arcpy.CalculateField_management(YC, "_Name_Owner_", '!OWNERSNAME!', "PYTHON_9.3")
     arcpy.CalculateField_management(YC, "_HouseNumber_", '!LOCADDR!.split(" ")[0]', "PYTHON_9.3")
-    arcpy.CalculateField_management(YC, "_Street_", '!STRTNAME!', "PYTHON_9.3")
-    arcpy.CalculateField_management(YC, "_State_", '"VA"', "PYTHON_9.3")
-    arcpy.CalculateField_management(YC, "_Square_Feet_", 'round(!shape.area@SQUAREFEET!, 2)', "PYTHON_9.3")
-    arcpy.CalculateField_management(YC, "_Acres_US_", 'round(!shape.area@ACRES!, 2)', "PYTHON_9.3")
+    arcpy.CalculateField_management(YC, "_Street_", 'Street(!LOCADDR!)', "PYTHON_9.3", codeblock_Street)#"_Street_", '!STRTNAME!', "PYTHON_9.3")
     arcpy.CalculateField_management(YC, "_Sub_Name_", '!SUBDIVISION!', "PYTHON_9.3")
-    arcpy.CalculateField_management(YC, "_Legal_Desc_", '[LEGLDESC]', "VB")
+    arcpy.CalculateField_management(YC, "_Legal_Desc_", '!TABLDIST_DESC!', "PYTHON_9.3")#'[LEGLDESC]', "VB")
     arcpy.CalculateField_management(YC, "_Info_Source_", '"York County GIS Manager"', "PYTHON_9.3")
-    arcpy.CalculateField_management(YC, "_EditDate_", 'Date()', "PYTHON_9.3", codeblock_Date)
-    arcpy.CalculateField_management(YC, "_EditBy_", '"bkingery"', "PYTHON_9.3")
     print '\tDeleting unnecessary fields'
     for field in arcpy.ListFields(YC):
         if not field.required and field.name not in TempFields:
             arcpy.DeleteField_management(YC, field.name)
-            print '\t\tDeleted ' + field.name
             
 def Poquoson():
     print 'Poquoson'
@@ -257,19 +354,13 @@ def Poquoson():
     arcpy.CalculateField_management(POQ, "_HouseNumber_", '!STRTNUMB!', "PYTHON_9.3") # Long - so recalc below to add to text
     arcpy.CalculateField_management(POQ, "_HouseNumber_", '!_HouseNumber_! + !NUMBSUFX!', "PYTHON_9.3") # To add Apt number
     arcpy.CalculateField_management(POQ, "_Street_", '!STRTNAME!', "PYTHON_9.3")
-    arcpy.CalculateField_management(POQ, "_State_", '"VA"', "PYTHON_9.3")
-    arcpy.CalculateField_management(POQ, "_Square_Feet_", 'round(!shape.area@SQUAREFEET!, 2)', "PYTHON_9.3")
-    arcpy.CalculateField_management(POQ, "_Acres_US_", 'round(!shape.area@ACRES!, 2)', "PYTHON_9.3")
     arcpy.CalculateField_management(POQ, "_Sub_Name_", '!PROPDESC!', "PYTHON_9.3")
-    arcpy.CalculateField_management(POQ, "_Legal_Desc_", '!LEGLDESC!', "PYTHON_9.3")
+    arcpy.CalculateField_management(POQ, "_Legal_Desc_", '[LEGLDESC]', "VB")#'!LEGLDESC!', "PYTHON_9.3")
     arcpy.CalculateField_management(POQ, "_Info_Source_", '"Poquoson Assessor Office"', "PYTHON_9.3")
-    arcpy.CalculateField_management(POQ, "_EditDate_", 'Date()', "PYTHON_9.3", codeblock_Date)
-    arcpy.CalculateField_management(POQ, "_EditBy_", '"bkingery"', "PYTHON_9.3")
     print '\tDeleting unnecessary fields'
     for field in arcpy.ListFields(POQ):
         if not field.required and field.name not in TempFields:
             arcpy.DeleteField_management(POQ, field.name)
-            print '\t\tDeleted ' + field.name
             
 def NewportNews():
     print 'Newport News'
@@ -278,19 +369,13 @@ def NewportNews():
     arcpy.CalculateField_management(NN, "_HouseNumber_", '!HouseNo!', "PYTHON_9.3") # Double - so recalc below to add to text
     arcpy.CalculateField_management(NN, "_HouseNumber_", '!_HouseNumber_! + !Apt!', "PYTHON_9.3") # To add Apt number
     arcpy.CalculateField_management(NN, "_Street_", '!Street!', "PYTHON_9.3")
-    arcpy.CalculateField_management(NN, "_State_", '"VA"', "PYTHON_9.3")
-    arcpy.CalculateField_management(NN, "_Square_Feet_", 'round(!shape.area@SQUAREFEET!, 2)', "PYTHON_9.3")
-    arcpy.CalculateField_management(NN, "_Acres_US_", 'round(!shape.area@ACRES!, 2)', "PYTHON_9.3")
     arcpy.CalculateField_management(NN, "_Sub_Name_", '!SubdivName!', "PYTHON_9.3")
     arcpy.CalculateField_management(NN, "_Legal_Desc_", '!LeglDesc!', "PYTHON_9.3")
     arcpy.CalculateField_management(NN, "_Info_Source_", '"NN Dept of Engineering"', "PYTHON_9.3")
-    arcpy.CalculateField_management(NN, "_EditDate_", 'Date()', "PYTHON_9.3", codeblock_Date)
-    arcpy.CalculateField_management(NN, "_EditBy_", '"bkingery"', "PYTHON_9.3")
     print '\tDeleting unnecessary fields'
     for field in arcpy.ListFields(NN):
         if not field.required and field.name not in TempFields:
             arcpy.DeleteField_management(NN, field.name)
-            print '\t\tDeleted ' + field.name
 
 def JamesCityCounty():
     print 'James City County'
@@ -298,18 +383,12 @@ def JamesCityCounty():
     arcpy.CalculateField_management(JCC, "_Parcel_ID_", '!PIN!', "PYTHON_9.3")
     arcpy.CalculateField_management(JCC, "_HouseNumber_", '!LOCADDR!.split(" ")[0]', "PYTHON_9.3")
     arcpy.CalculateField_management(JCC, "_Street_", 'Street(!LOCADDR!)', "PYTHON_9.3", codeblock_Street)
-    arcpy.CalculateField_management(JCC, "_State_", '"VA"', "PYTHON_9.3")
-    arcpy.CalculateField_management(JCC, "_Square_Feet_", 'round(!shape.area@SQUAREFEET!, 2)', "PYTHON_9.3")
-    arcpy.CalculateField_management(JCC, "_Acres_US_", 'round(!shape.area@ACRES!, 2)', "PYTHON_9.3")
     arcpy.CalculateField_management(JCC, "_Legal_Desc_", '!Legal1!', "PYTHON_9.3")
     arcpy.CalculateField_management(JCC, "_Info_Source_", '"James City County GIS Website"', "PYTHON_9.3")
-    arcpy.CalculateField_management(JCC, "_EditDate_", 'Date()', "PYTHON_9.3", codeblock_Date)
-    arcpy.CalculateField_management(JCC, "_EditBy_", '"bkingery"', "PYTHON_9.3")
     print '\tDeleting unnecessary fields'
     for field in arcpy.ListFields(JCC):
         if not field.required and field.name not in TempFields:
             arcpy.DeleteField_management(JCC, field.name)
-            print '\t\tDeleted ' + field.name
 
 def Hampton():
     print 'Hampton'
@@ -317,18 +396,12 @@ def Hampton():
     arcpy.CalculateField_management(HAM, "_Parcel_ID_", '!LRSNTXT!', "PYTHON_9.3")
     arcpy.CalculateField_management(HAM, "_HouseNumber_", '!SITUS!.split(" ")[0]', "PYTHON_9.3")
     arcpy.CalculateField_management(HAM, "_Street_", 'Street(!SITUS!)', "PYTHON_9.3", codeblock_Street)
-    arcpy.CalculateField_management(HAM, "_State_", '"VA"', "PYTHON_9.3")
-    arcpy.CalculateField_management(HAM, "_Square_Feet_", 'round(!shape.area@SQUAREFEET!, 2)', "PYTHON_9.3")
-    arcpy.CalculateField_management(HAM, "_Acres_US_", 'round(!shape.area@ACRES!, 2)', "PYTHON_9.3")
     arcpy.CalculateField_management(HAM, "_Sub_Name_", '[Sub_Div]', "VB")
     arcpy.CalculateField_management(HAM, "_Info_Source_", '"Hampton IT GIS"', "PYTHON_9.3")
-    arcpy.CalculateField_management(HAM, "_EditDate_", 'Date()', "PYTHON_9.3", codeblock_Date)
-    arcpy.CalculateField_management(HAM, "_EditBy_", '"bkingery"', "PYTHON_9.3")
     print '\tDeleting unnecessary fields'
     for field in arcpy.ListFields(HAM):
         if not field.required and field.name not in TempFields:
             arcpy.DeleteField_management(HAM, field.name)
-            print '\t\tDeleted ' + field.name
 
 def NewKentCounty():
     print 'New Kent County'
@@ -337,19 +410,13 @@ def NewKentCounty():
     arcpy.CalculateField_management(NKC, "_Name_Owner_", '!REM_OWN_NAME!', "PYTHON_9.3")
     arcpy.CalculateField_management(NKC, "_HouseNumber_", '!REM_PRCL_LOCN!.split(" ")[0]', "PYTHON_9.3")
     arcpy.CalculateField_management(NKC, "_Street_", 'Street(!REM_PRCL_LOCN!)', "PYTHON_9.3", codeblock_Street)
-    arcpy.CalculateField_management(NKC, "_State_", '"VA"', "PYTHON_9.3")
-    arcpy.CalculateField_management(NKC, "_Square_Feet_", 'round(!shape.area@SQUAREFEET!, 2)', "PYTHON_9.3")
-    arcpy.CalculateField_management(NKC, "_Acres_US_", 'round(!shape.area@ACRES!, 2)', "PYTHON_9.3")
     arcpy.CalculateField_management(NKC, "_Sub_Name_", '!SUBDIVISION!', "PYTHON_9.3")
     arcpy.CalculateField_management(NKC, "_Legal_Desc_", '!VNS_STYLE_DESC!', "PYTHON_9.3")
     arcpy.CalculateField_management(NKC, "_Info_Source_", '"New Kent County GIS"', "PYTHON_9.3")
-    arcpy.CalculateField_management(NKC, "_EditDate_", 'Date()', "PYTHON_9.3", codeblock_Date)
-    arcpy.CalculateField_management(NKC, "_EditBy_", '"bkingery"', "PYTHON_9.3")
     print '\tDeleting unnecessary fields'
     for field in arcpy.ListFields(NKC):
         if not field.required and field.name not in TempFields:
             arcpy.DeleteField_management(NKC, field.name)
-            print '\t\tDeleted ' + field.name
 
 ############################################################################################
 
@@ -374,7 +441,6 @@ def ZipCodeJoin():
     for field in arcpy.ListFields(MasterZipCodeJoinFC):
         if not field.required and field.name not in TempFields:
             arcpy.DeleteField_management(MasterZipCodeJoinFC, field.name)
-            print '\t\tDeleted ' + field.name
             
 def CityJoin():
     print 'Joining to City FC'
@@ -385,14 +451,12 @@ def CityJoin():
     for field in arcpy.ListFields(MasterCityJoinFC):
         if not field.required and field.name not in TempFields:
             arcpy.DeleteField_management(MasterCityJoinFC, field.name)
-            print '\t\tDeleted ' + field.name
-
     out_path = env.workspace + os.sep + 'UpdateFolder' + os.sep + TodaysDate + os.sep + 'Parcels_' + TodaysDate + '.gdb'
     out_name = FinalFCname
     arcpy.FeatureClassToFeatureClass_conversion(MasterCityJoinFC, out_path, out_name)
 
 def AlterFields():
-    print 'Finalizing fields'
+    print FinalFCname
     # Run this to match field names to current schema and delete temporary fields
     fieldName1  = "Parcel_ID"
     fieldName2  = "Name_Owner"
@@ -411,8 +475,8 @@ def AlterFields():
     
     fieldType1  = "TEXT"
     fieldType2  = "DOUBLE"
-    
-    print 'Adding fields to ' + CleanedParcels
+
+    print '\tAdding fields to ' + FinalFCname
     arcpy.AddField_management(CleanedParcels, fieldName1,  fieldType1, "", "", 50)
     arcpy.AddField_management(CleanedParcels, fieldName2,  fieldType1, "", "", 150)
     arcpy.AddField_management(CleanedParcels, fieldName3,  fieldType1, "", "", 50)
@@ -431,24 +495,24 @@ def AlterFields():
     print '\tField calculating'
     arcpy.CalculateField_management(CleanedParcels, "Parcel_ID",     '!_Parcel_ID_!',   "PYTHON_9.3")
     arcpy.CalculateField_management(CleanedParcels, "Name_Owner",    '!_Name_Owner_!',  "PYTHON_9.3")
-    arcpy.CalculateField_management(CleanedParcels, "HouseNumber",   '!_HouseNumber_!', "PYTHON_9.3")
-    arcpy.CalculateField_management(CleanedParcels, "Street",        '!_Street_!',      "PYTHON_9.3")
+    # Fix Streets first and then clean the House Numbers
+    arcpy.CalculateField_management(CleanedParcels, "Street",        'FixStreet(!_HouseNumber_!,!_Street_!)',   "PYTHON_9.3", codeblock_FixStreet)
+    arcpy.CalculateField_management(CleanedParcels, "HouseNumber",   'FixHouseNo(!_HouseNumber_!)',             "PYTHON_9.3", codeblock_FixHouseNo)
     arcpy.CalculateField_management(CleanedParcels, "City_Loc",      '!_City_Loc_!',    "PYTHON_9.3")
-    arcpy.CalculateField_management(CleanedParcels, "State",         '!_State_!',       "PYTHON_9.3")
-    arcpy.CalculateField_management(CleanedParcels, "Zip_Code",      '!_Zip_Code_!',    "PYTHON_9.3")
-    arcpy.CalculateField_management(CleanedParcels, "Square_Feet",   '!_Square_Feet_!', "PYTHON_9.3")
-    arcpy.CalculateField_management(CleanedParcels, "Acres_US",      '!_Acres_US_!',    "PYTHON_9.3")
+    arcpy.CalculateField_management(CleanedParcels, "State",         '"VA"',            "PYTHON_9.3")
+    arcpy.CalculateField_management(CleanedParcels, "Zip_Code",      '!_Zip_Code_!',    "PYTHON_9.3")   
+    arcpy.CalculateField_management(CleanedParcels, "Square_Feet",   'round(!shape.area@SQUAREFEET!, 2)',       "PYTHON_9.3")
+    arcpy.CalculateField_management(CleanedParcels, "Acres_US",      'round(!shape.area@ACRES!, 2)',            "PYTHON_9.3")
     arcpy.CalculateField_management(CleanedParcels, "Sub_Name",      '!_Sub_Name_!',    "PYTHON_9.3")
-    arcpy.CalculateField_management(CleanedParcels, "Legal_Desc",    '!_Legal_Desc_!',  "PYTHON_9.3")
+    arcpy.CalculateField_management(CleanedParcels, "Legal_Desc",    '[_Legal_Desc_]',  "VB")
     arcpy.CalculateField_management(CleanedParcels, "Info_Source",   '!_Info_Source_!', "PYTHON_9.3")
-    arcpy.CalculateField_management(CleanedParcels, "EditDate",      '!_EditDate_!',    "PYTHON_9.3")
-    arcpy.CalculateField_management(CleanedParcels, "EditBy",        '!_EditBy_!',      "PYTHON_9.3")
+    arcpy.CalculateField_management(CleanedParcels, "EditDate",      'Date()',          "PYTHON_9.3", codeblock_Date)
+    arcpy.CalculateField_management(CleanedParcels, "EditBy",        '"bkingery"',      "PYTHON_9.3")
 
     print '\tDeleting unnecessary fields'
     for field in arcpy.ListFields(CleanedParcels):
         if not field.required and field.name not in FinalFields:
             arcpy.DeleteField_management(CleanedParcels, field.name)
-            print '\t\tDeleted ' + field.name
 
 def SendEmail():
     try:
@@ -460,9 +524,8 @@ def SendEmail():
 
         subject = 'Parcel Update'
         
-        body  = '\nParcel update successful\r\n'
-        body += 'Ready to copy to sde\r\n'
-
+        body  = '\nParcel update operation successful\r\n'
+        
         message  = ''
         message += 'From: %s\r\n' % mailSender
         message += 'To: %s\r\n' % ', '.join(mailRecipients)
@@ -471,7 +534,6 @@ def SendEmail():
         server = smtplib.SMTP(mailServer)
         server.sendmail(mailSender, mailRecipients, message)
         server.quit()
+        print 'Email sent'
     except:
         print 'Email not sent'
-        
-############################################################################################
