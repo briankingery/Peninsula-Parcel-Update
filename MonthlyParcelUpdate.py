@@ -1,7 +1,7 @@
 """
 Name:     MonthlyParcelUpdate.py
 Author:   Brian Kingery
-Created:  8/3/2016
+Created:  8/18/2016
 Purpose:  Automate the monthly Parcel update process
 Folder:   R:\Divisions\InfoTech\Shared\GIS\Parcels
 
@@ -229,8 +229,17 @@ def JCCParcels():
         print 'Make sure jcc_parcels.zip is saved to JCC folder.' 
 
 def HAMParcels():
-    pass
-
+    try:
+        HAMfolder = env.workspace + os.sep + 'UpdateFolder' + os.sep + TodaysDate + os.sep + 'CityData' + os.sep + 'Hampton'
+        HAMZip = HAMfolder + os.sep + 'Parcel.zip'
+        with zipfile.ZipFile(HAMZip, "r") as z:
+            z.extractall(HAMfolder)
+        SHP = HAMfolder + os.sep + 'Parcel' + os.sep + 'PropertyPolygons.shp'
+        arcpy.CopyFeatures_management(SHP, HAM)
+        print 'HAM parcels copied to main database'
+    except:
+        print 'Make sure Parcel.zip is saved to HAM folder.'
+        
 def NKCParcels():
     try:
         NKCfolder = env.workspace + os.sep + 'UpdateFolder' + os.sep + TodaysDate + os.sep + 'CityData' + os.sep + 'NewKentCounty'
@@ -395,7 +404,7 @@ def Hampton():
     print '\tField calculating'
     arcpy.CalculateField_management(HAM, "_Parcel_ID_", '!LRSNTXT!', "PYTHON_9.3")
     arcpy.CalculateField_management(HAM, "_HouseNumber_", '!SITUS!.split(" ")[0]', "PYTHON_9.3")
-    arcpy.CalculateField_management(HAM, "_Street_", 'Street(!SITUS!)', "PYTHON_9.3", codeblock_Street)
+    arcpy.CalculateField_management(HAM, "_Street_", 'Street(!SITUS!)', "PYTHON_9.3", codeblock_Street) # or !FRONT_ST!
     arcpy.CalculateField_management(HAM, "_Sub_Name_", '[Sub_Div]', "VB")
     arcpy.CalculateField_management(HAM, "_Info_Source_", '"Hampton IT GIS"', "PYTHON_9.3")
     print '\tDeleting unnecessary fields'
@@ -434,7 +443,7 @@ def MergeParcels():
                               
 def ZipCodeJoin():
     print 'Joining to ZipCode FC'
-    arcpy.SpatialJoin_analysis(MasterParcels, ZipCodeFC, MasterZipCodeJoinFC, "JOIN_ONE_TO_ONE", "KEEP_ALL")
+    arcpy.SpatialJoin_analysis(MasterParcels, ZipCodeFC, MasterZipCodeJoinFC, "JOIN_ONE_TO_ONE", "KEEP_ALL", "", "HAVE_THEIR_CENTER_IN")#"COMPLETELY_WITHIN")
     print '\tField calculating'
     arcpy.CalculateField_management(MasterZipCodeJoinFC, "_Zip_Code_", '!ZCTA5CE10!', "PYTHON_9.3")
     print '\tDeleting unnecessary fields'
@@ -444,7 +453,7 @@ def ZipCodeJoin():
             
 def CityJoin():
     print 'Joining to City FC'
-    arcpy.SpatialJoin_analysis(MasterZipCodeJoinFC, CityFC, MasterCityJoinFC, "JOIN_ONE_TO_ONE", "KEEP_ALL")
+    arcpy.SpatialJoin_analysis(MasterZipCodeJoinFC, CityFC, MasterCityJoinFC, "JOIN_ONE_TO_ONE", "KEEP_ALL", "", "HAVE_THEIR_CENTER_IN")#"COMPLETELY_WITHIN")
     print '\tField calculating'
     arcpy.CalculateField_management(MasterCityJoinFC, "_City_Loc_", '!NAMELSAD!', "PYTHON_9.3")
     print '\tDeleting unnecessary fields'
@@ -537,3 +546,5 @@ def SendEmail():
         print 'Email sent'
     except:
         print 'Email not sent'
+
+############################################################################################
