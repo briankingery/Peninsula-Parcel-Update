@@ -36,41 +36,32 @@ OldParcels          = env.workspace + os.sep + 'UpdateFolder' + os.sep + TodaysD
 
 def UpdateData():
     # Add a Database connection to sdeVector using SQL Server on Conway using Operating System Authentication
-        # Rename to OS_DQSQL_sdeVector.sde
+        # Rename to OS_Conway_sdeVector.sde
     # Create version (using ArcMap Version Manager) - bkingery
-    # Right Click on connection --> Geodatabase Connection Properties --> Choose appropriate Version
 
-##    # Test
-##    masterParcels = r'Database Connections\OS_DQSQL_sdeVector.sde\sdeVector.SDEDATAOWNER.Cadastral\sdeVector.SDEDATAOWNER.RealPropertyParcel'
+    DatabaseServer_Database_sde = r'R:\Divisions\InfoTech\Shared\GIS\Parcels\OS_Conway_sdeVector.sde'
+    # Set local variables
+    inWorkspace = DatabaseServer_Database_sde
+    parentVersion = "sde.DEFAULT"
+    versionName = "bkingery"
+    # Execute CreateVersion
+    arcpy.CreateVersion_management(inWorkspace, parentVersion, versionName, "PROTECTED")
+    print 'version created'
 
-    # Real
-    masterParcels = r'Database Connections\OS_Conway_sdeVector.sde\sdeVector.SDEDATAOWNER.Cadastral\sdevector.SDEDATAOWNER.RealPropertyParcel'
-
-
-##    # Copy outdated parcels to project gdb as a backup
-##    arcpy.CopyFeatures_management(masterParcels, OldParcels)
-##    print 'Old version of Parcels copied to Parcels_' + TodaysDate + '.gdb'
-
-
+    MASTER = r'R:\Divisions\InfoTech\Shared\GIS\Parcels\OS_Conway_sdeVector.sde\sdeVector.SDEDATAOWNER.Cadastral\sdeVector.SDEDATAOWNER.RealPropertyParcel'
+    # Create the layers
+    arcpy.MakeFeatureLayer_management(MASTER,'parcel_lyr')
+    print 'make layer complete'
+    arcpy.ChangeVersion_management('parcel_lyr','TRANSACTIONAL','BKINGERY.bkingery')
+    print 'change version'
+    
     # Delete rows in versioned feature class
-    arcpy.DeleteFeatures_management(masterParcels)
+    arcpy.DeleteFeatures_management('parcel_lyr')
     print 'Parcels deleted'
 
-
-    # Append new values to versioned feature class
-
-##    # Test
-##    try:
-##        arcpy.Append_management(OldParcels, masterParcels, "TEST", "", "")
-##    except:
-##        print 'Error - check results'
-
-    # Real
     try:
-        arcpy.Append_management(CleanedParcels, masterParcels, "TEST", "", "")
+        arcpy.Append_management(CleanedParcels, 'parcel_lyr', "TEST")
+        print 'Parcels updated'
     except:
-        print 'Error - check results'
-
-    print 'New version of Parcels uploaded'
-
+        print 'Error, but still check the version, it might have worked'
 
