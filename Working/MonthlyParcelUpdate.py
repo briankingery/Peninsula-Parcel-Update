@@ -238,13 +238,15 @@ def NNParcels():
 def JCCParcels():
     try:
         JCCfolder = env.workspace + os.sep + 'UpdateFolder' + os.sep + TodaysDate + os.sep + 'CityData' + os.sep + 'JamesCityCounty'
-        url = "ftp://property.jamescitycountyva.gov/GIS/layers/jcc_parcels.zip"
+##        url = "ftp://property.jamescitycountyva.gov/GIS/layers/jcc_parcels.zip"
+        url = "ftp://property.jamescitycountyva.gov/GIS/JCC_Parcels.zip"
         JCCParcels = urllib.URLopener()
         JCCZip = JCCfolder + os.sep + 'jcc_parcels.zip'
         JCCParcels.retrieve(url,JCCZip)
         with zipfile.ZipFile(JCCZip, "r") as z:
             z.extractall(JCCfolder)
-        SHP = JCCfolder + os.sep + 'parcel_public.shp'
+##        SHP = JCCfolder + os.sep + 'parcel_public.shp'
+        SHP = JCCfolder + os.sep + 'JCC_Parcels.shp'
         arcpy.CopyFeatures_management(SHP, JCC)
         print 'JCC parcels copied to main database'
     except:
@@ -397,6 +399,7 @@ def NewportNews():
     print 'Newport News'
     print '\tField calculating'
     arcpy.CalculateField_management(NN, "_Parcel_ID_", '!REISID!', "PYTHON_9.3")
+    arcpy.CalculateField_management(NN, "_Name_Owner_", '!OwnerNam!', "PYTHON_9.3")    
     arcpy.CalculateField_management(NN, "_HouseNumber_", '!HouseNo!', "PYTHON_9.3") # Double - so recalc below to add to text
     arcpy.CalculateField_management(NN, "_HouseNumber_", '!_HouseNumber_! + !Apt!', "PYTHON_9.3") # To add Apt number
     arcpy.CalculateField_management(NN, "_Street_", '!Street!', "PYTHON_9.3")
@@ -414,6 +417,7 @@ def JamesCityCounty():
     arcpy.CalculateField_management(JCC, "_Parcel_ID_", '!PIN!', "PYTHON_9.3")
     arcpy.CalculateField_management(JCC, "_HouseNumber_", '!LOCADDR!.split(" ")[0]', "PYTHON_9.3")
     arcpy.CalculateField_management(JCC, "_Street_", 'Street(!LOCADDR!)', "PYTHON_9.3", codeblock_Street)
+    arcpy.CalculateField_management(JCC, "_Sub_Name_", '!SUBNAME!', "PYTHON_9.3") # might need to remove  
     arcpy.CalculateField_management(JCC, "_Legal_Desc_", '!Legal1!', "PYTHON_9.3")
     arcpy.CalculateField_management(JCC, "_Info_Source_", '"James City County GIS Website"', "PYTHON_9.3")
     print '\tDeleting unnecessary fields'
@@ -574,39 +578,31 @@ def SendEmail():
 
 def UpdateData():
     # Add a Database connection to sdeVector using SQL Server on Conway using Operating System Authentication
-        # Rename to OS_DQSQL_sdeVector.sde
+        # Rename to OS_Conway_sdeVector.sde
     # Create version (using ArcMap Version Manager) - bkingery
-    # Right Click on connection --> Geodatabase Connection Properties --> Choose appropriate Version
 
-##    # Test
-##    masterParcels = r'Database Connections\OS_DQSQL_sdeVector.sde\sdeVector.SDEDATAOWNER.Cadastral\sdeVector.SDEDATAOWNER.RealPropertyParcel'
+    DatabaseServer_Database_sde = r'R:\Divisions\InfoTech\Shared\GIS\Parcels\OS_Conway_sdeVector.sde'
+    # Set local variables
+    inWorkspace = DatabaseServer_Database_sde
+    parentVersion = "sde.DEFAULT"
+    versionName = "bkingery"
+    # Execute CreateVersion
+    arcpy.CreateVersion_management(inWorkspace, parentVersion, versionName, "PROTECTED")
+    print 'version created'
 
-    # Real
-    masterParcels = r'Database Connections\OS_Conway_sdeVector.sde\sdeVector.SDEDATAOWNER.Cadastral\sdevector.SDEDATAOWNER.RealPropertyParcel'
-
-
-##    # Copy outdated parcels to project gdb as a backup
-##    arcpy.CopyFeatures_management(masterParcels, OldParcels)
-##    print 'Old version of Parcels copied to Parcels_' + TodaysDate + '.gdb'
-
-
+    MASTER = r'R:\Divisions\InfoTech\Shared\GIS\Parcels\OS_Conway_sdeVector.sde\sdeVector.SDEDATAOWNER.Cadastral\sdeVector.SDEDATAOWNER.RealPropertyParcel'
+    # Create the layers
+    arcpy.MakeFeatureLayer_management(MASTER,'parcel_lyr')
+    print 'make layer complete'
+    arcpy.ChangeVersion_management('parcel_lyr','TRANSACTIONAL','BKINGERY.bkingery')
+    print 'change version'
+    
     # Delete rows in versioned feature class
-    arcpy.DeleteFeatures_management(masterParcels)
+    arcpy.DeleteFeatures_management('parcel_lyr')
     print 'Parcels deleted'
 
-
-    # Append new values to versioned feature class
-
-##    # Test
-##    try:
-##        arcpy.Append_management(OldParcels, masterParcels, "TEST", "", "")
-##    except:
-##        print 'Error - check results'
-
-    # Real
     try:
-        arcpy.Append_management(CleanedParcels, masterParcels, "TEST", "", "")
+        arcpy.Append_management(CleanedParcels, 'parcel_lyr', "TEST")
+        print 'Parcels updated'
     except:
-        print 'Error - check results'
-
-    print 'New version of Parcels uploaded'
+        print 'Error, but still check the version, it might have worked'
