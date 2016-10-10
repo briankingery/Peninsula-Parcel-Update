@@ -13,20 +13,25 @@ Williamsburg
     Website = https://www.williamsburgva.gov/Index.aspx?page=793
     Parcels.zip = http://www.williamsburgva.gov/Modules/ShowDocument.aspx?documentid=3604
 York County
-    -- Confidential --
+    GIS Server = http://maps.yorkcounty.gov/arcgis/rest/services
+    AGOServices --> Parcels Feature Service
 Poquoson
     WorldView Solutions maintains Poquoson parcel data and set up a profile to request data
     Updates quarterly
     Website = https://worldviewsolutions.atlassian.net/servicedesk/customer/portals
 Newport News
-    -- Confidential --
+    avexport = \\10.5.106.7\enggisdata-34\avexport
+    FTP = http://gis.nngov.com/resources/NNParcels.zip
 James City County
     Website = http://www.jamescitycountyva.gov/397/Mapping-Layers
     jcc_parcels.zip = ftp://property.jamescitycountyva.gov/GIS/layers/jcc_parcels.zip
 Hampton
-    -- Confidential --
+    Contact GIS Manager Allan Lambert <alambert@hampton.gov> or Andrew Foo <afoo@hampton.gov>
+    Dropbox = https://hampton.box.com/s/m72kykw5odc7y7m7bzlfxcfnjf3fw13w
 New Kent County
-    -- Confidential --
+    Website = https://www.dropbox.com/sh/ynce0em649y5aas/AACjCT4zCthTqNWAIL7qL7Aka?dl=0
+    CountyGIS.gdb = https://www.dropbox.com/sh/ynce0em649y5aas/AAAN5xE8tjXoeOco3jOQn-Fga/CountyGIS.gdb?dl=0%3Flst
+
 Zipcodes
     ftp://ftp2.census.gov/geo/tiger/TIGER2015/ZCTA5/
 County Data
@@ -38,10 +43,16 @@ Order of Operations
 
 1 Start()
     - A folder of TodaysDate will be created at R:\Divisions\InfoTech\Shared\GIS\Parcels containing a file geodatabase
-2 Manually import each zipfile to correct CityData folder
-    - York County parcels from rest service directly to main geodatabase
-    - Download CountyGIS.gdb.zip for NKC to the correct CityData folder
-        - Right click zip file --> Extract All... to NKC folder
+2 Import data to correct CityData folder
+    - Williamsburg - Pulls data from url automatically
+    - York County - Save parcels from rest service directly to main geodatabase
+    - Poquoson - Save zipfile received from WorldView
+    - Newport News - Save zipfile received from NN IT
+    - James City County - Pulls data from url automatically
+    - Hampton - Save zipfile received from HAM IT
+    - New Kent County - Download CountyGIS.gdb.zip for NKC
+        - Created folder in CityData folder named CountyGIS.gdb
+        - Right click zip file --> Extract All... to CountyGIS.gdb folder
         - Run NKCParcels() --> Open Arcmap --> Add .lyr and export to GDB as NKC    
 3 ProcessData()
 4 FieldCalc()
@@ -61,7 +72,7 @@ Feature Class named RealPropertyParcel properly formatted ready to be copied to 
 
 """
 
-import arcpy, datetime, os, zipfile
+import arcpy, datetime, os, zipfile, urllib
 from arcpy import env
 
 env.workspace = r'R:\Divisions\InfoTech\Shared\GIS\Parcels'
@@ -89,6 +100,8 @@ MasterZipCodeJoinFC = env.workspace + os.sep + 'UpdateFolder' + os.sep + TodaysD
 MasterCityJoinFC    = env.workspace + os.sep + 'UpdateFolder' + os.sep + TodaysDate + os.sep + 'Parcels_' + TodaysDate + '.gdb' + os.sep + 'Master_Join_2_City'
 FinalFCname = 'RealPropertyParcel'
 CleanedParcels      = env.workspace + os.sep + 'UpdateFolder' + os.sep + TodaysDate + os.sep + 'Parcels_' + TodaysDate + '.gdb' + os.sep + FinalFCname
+OldParcels          = env.workspace + os.sep + 'UpdateFolder' + os.sep + TodaysDate + os.sep + 'Parcels_' + TodaysDate + '.gdb' + os.sep + 'OLD_RealPropertyParcel_' + TodaysDate
+
 
 ZipCodeFC   = env.workspace + os.sep + 'Data' + os.sep + 'Data.gdb' + os.sep + 'ZipCode'
 CityFC      = env.workspace + os.sep + 'Data' + os.sep + 'Data.gdb' + os.sep + 'City'
@@ -173,7 +186,7 @@ def CreateFileGeodatabase():
     
 def ProcessData():
     WBParcels()
-    ## York County parcels from rest service directly to main geodatabase
+    YCParcels()
     POQParcels()
     NNParcels()
     JCCParcels()
@@ -183,14 +196,21 @@ def ProcessData():
 def WBParcels():
     try:
         WBfolder = env.workspace + os.sep + 'UpdateFolder' + os.sep + TodaysDate + os.sep + 'CityData' + os.sep + 'Williamsburg'
+        url = 'http://www.williamsburgva.gov/Modules/ShowDocument.aspx?documentid=3604'
+        WBParcels = urllib.URLopener()
         WBZip = WBfolder + os.sep + 'Parcels.zip'
+        WBParcels.retrieve(url,WBZip)
         with zipfile.ZipFile(WBZip, "r") as z:
             z.extractall(WBfolder)
         SHP = WBfolder + os.sep + 'Parcels.shp'
         arcpy.CopyFeatures_management(SHP, WB)
         print 'WB parcels copied to main database'
     except:
-        print 'Make sure Parcels.zip is saved to WB folder.'
+        print 'Check URL'
+
+def YCParcels():
+    # Save from Rest Server
+    pass
 
 def POQParcels():
     try:
@@ -206,12 +226,15 @@ def POQParcels():
 
 def NNParcels():
     try:
-        NNfolder = env.workspace + os.sep + 'UpdateFolder' + os.sep + TodaysDate + os.sep + 'CityData' + os.sep + 'NewportNews'
-        NNZip = NNfolder + os.sep + 'NNParcels.zip'
-        with zipfile.ZipFile(NNZip, "r") as z:
-            z.extractall(NNfolder)
-        SHP = NNfolder + os.sep + 'NNParcels.shp'
-        arcpy.CopyFeatures_management(SHP, NN)
+##        NNfolder = env.workspace + os.sep + 'UpdateFolder' + os.sep + TodaysDate + os.sep + 'CityData' + os.sep + 'NewportNews'
+##        NNZip = NNfolder + os.sep + 'NNParcels.zip'
+##        with zipfile.ZipFile(NNZip, "r") as z:
+##            z.extractall(NNfolder)
+##        SHP = NNfolder + os.sep + 'NNParcels.shp'
+##        arcpy.CopyFeatures_management(SHP, NN)
+        NNfc = r'T:\GIS.gdb\Parcel_Polygon'
+        arcpy.CopyFeatures_management(NNfc, NN)
+        
         print 'NN parcels copied to main database'
     except:
         print 'Make sure NNParcels.zip is saved to NN folder.'    
@@ -219,14 +242,19 @@ def NNParcels():
 def JCCParcels():
     try:
         JCCfolder = env.workspace + os.sep + 'UpdateFolder' + os.sep + TodaysDate + os.sep + 'CityData' + os.sep + 'JamesCityCounty'
+##        url = "ftp://property.jamescitycountyva.gov/GIS/layers/jcc_parcels.zip"
+        url = "ftp://property.jamescitycountyva.gov/GIS/JCC_Parcels.zip"
+        JCCParcels = urllib.URLopener()
         JCCZip = JCCfolder + os.sep + 'jcc_parcels.zip'
+        JCCParcels.retrieve(url,JCCZip)
         with zipfile.ZipFile(JCCZip, "r") as z:
             z.extractall(JCCfolder)
-        SHP = JCCfolder + os.sep + 'parcel_public.shp'
+##        SHP = JCCfolder + os.sep + 'parcel_public.shp'
+        SHP = JCCfolder + os.sep + 'JCC_Parcels.shp'
         arcpy.CopyFeatures_management(SHP, JCC)
         print 'JCC parcels copied to main database'
     except:
-        print 'Make sure jcc_parcels.zip is saved to JCC folder.' 
+        print 'Check URL' 
 
 def HAMParcels():
     try:
@@ -375,6 +403,7 @@ def NewportNews():
     print 'Newport News'
     print '\tField calculating'
     arcpy.CalculateField_management(NN, "_Parcel_ID_", '!REISID!', "PYTHON_9.3")
+    arcpy.CalculateField_management(NN, "_Name_Owner_", '!OwnerNam!', "PYTHON_9.3")    
     arcpy.CalculateField_management(NN, "_HouseNumber_", '!HouseNo!', "PYTHON_9.3") # Double - so recalc below to add to text
     arcpy.CalculateField_management(NN, "_HouseNumber_", '!_HouseNumber_! + !Apt!', "PYTHON_9.3") # To add Apt number
     arcpy.CalculateField_management(NN, "_Street_", '!Street!', "PYTHON_9.3")
@@ -392,6 +421,7 @@ def JamesCityCounty():
     arcpy.CalculateField_management(JCC, "_Parcel_ID_", '!PIN!', "PYTHON_9.3")
     arcpy.CalculateField_management(JCC, "_HouseNumber_", '!LOCADDR!.split(" ")[0]', "PYTHON_9.3")
     arcpy.CalculateField_management(JCC, "_Street_", 'Street(!LOCADDR!)', "PYTHON_9.3", codeblock_Street)
+    arcpy.CalculateField_management(JCC, "_Sub_Name_", '!SUBNAME!', "PYTHON_9.3") # might need to remove  
     arcpy.CalculateField_management(JCC, "_Legal_Desc_", '!Legal1!', "PYTHON_9.3")
     arcpy.CalculateField_management(JCC, "_Info_Source_", '"James City County GIS Website"', "PYTHON_9.3")
     print '\tDeleting unnecessary fields'
@@ -460,11 +490,13 @@ def CityJoin():
     for field in arcpy.ListFields(MasterCityJoinFC):
         if not field.required and field.name not in TempFields:
             arcpy.DeleteField_management(MasterCityJoinFC, field.name)
+
+def AlterFields():
+
     out_path = env.workspace + os.sep + 'UpdateFolder' + os.sep + TodaysDate + os.sep + 'Parcels_' + TodaysDate + '.gdb'
     out_name = FinalFCname
     arcpy.FeatureClassToFeatureClass_conversion(MasterCityJoinFC, out_path, out_name)
-
-def AlterFields():
+    
     print FinalFCname
     # Run this to match field names to current schema and delete temporary fields
     fieldName1  = "Parcel_ID"
@@ -504,7 +536,6 @@ def AlterFields():
     print '\tField calculating'
     arcpy.CalculateField_management(CleanedParcels, "Parcel_ID",     '!_Parcel_ID_!',   "PYTHON_9.3")
     arcpy.CalculateField_management(CleanedParcels, "Name_Owner",    '!_Name_Owner_!',  "PYTHON_9.3")
-    # Fix Streets first and then clean the House Numbers
     arcpy.CalculateField_management(CleanedParcels, "Street",        'FixStreet(!_HouseNumber_!,!_Street_!)',   "PYTHON_9.3", codeblock_FixStreet)
     arcpy.CalculateField_management(CleanedParcels, "HouseNumber",   'FixHouseNo(!_HouseNumber_!)',             "PYTHON_9.3", codeblock_FixHouseNo)
     arcpy.CalculateField_management(CleanedParcels, "City_Loc",      '!_City_Loc_!',    "PYTHON_9.3")
@@ -548,3 +579,40 @@ def SendEmail():
         print 'Email not sent'
 
 ############################################################################################
+
+def UpdateData():
+    # Add a Database connection to sdeVector using SQL Server on Conway using Operating System Authentication
+        # Rename to OS_Conway_sdeVector.sde
+    # Create version (using ArcMap Version Manager) - bkingery
+
+    DatabaseServer_Database_sde = r'R:\Divisions\InfoTech\Shared\GIS\Parcels\OS_Conway_sdeVector.sde'
+    # Set local variables
+    inWorkspace = DatabaseServer_Database_sde
+    parentVersion = "sde.DEFAULT"
+    versionName = "bkingery"
+    # Execute CreateVersion
+    arcpy.CreateVersion_management(inWorkspace, parentVersion, versionName, "PROTECTED")
+    print 'version created'
+
+    MASTER = r'R:\Divisions\InfoTech\Shared\GIS\Parcels\OS_Conway_sdeVector.sde\sdeVector.SDEDATAOWNER.Cadastral\sdeVector.SDEDATAOWNER.RealPropertyParcel'
+
+    # Copy outdated parcels to project gdb as a backup
+    arcpy.CopyFeatures_management(MASTER, OldParcels)
+    print 'Old version of Parcels copied to Parcels_' + TodaysDate + '.gdb'
+
+    # Create the layers
+    arcpy.MakeFeatureLayer_management(MASTER,'parcel_lyr')
+    print 'make layer complete'
+    arcpy.ChangeVersion_management('parcel_lyr','TRANSACTIONAL','BKINGERY.bkingery')
+    print 'change version'
+    
+    # Delete rows in versioned feature class
+    arcpy.DeleteFeatures_management('parcel_lyr')
+    print 'Parcels deleted'
+
+    # Append new values to versioned feature class
+    try:
+        arcpy.Append_management(CleanedParcels, 'parcel_lyr', "TEST")
+        print 'Parcels updated'
+    except:
+        print 'Error, but still check the version, it might have worked'
